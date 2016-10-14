@@ -6,6 +6,11 @@ include_in_docs: true
 priority: 10
 ---
 
+# Notes from Paul: Currently working on adding lmdb classification to this example...
+
+
+
+
 # Classifying ImageNet: using the C++ API
 
 Caffe, at its core, is written in C++. It is possible to use the C++
