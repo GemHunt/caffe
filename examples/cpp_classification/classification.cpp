@@ -1,4 +1,4 @@
-#define USE_OPENCV
+//#define USE_OPENCV
 #include <caffe/caffe.hpp>
 #ifdef USE_OPENCV
 #include <opencv2/core/core.hpp>
@@ -11,6 +11,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <sys/stat.h>
+#include <dirent.h>
 
 #ifdef USE_OPENCV
 using namespace caffe;  // NOLINT(build/namespaces)
@@ -38,6 +40,7 @@ private:
 
     void Preprocess(const cv::Mat& img,
                     std::vector<cv::Mat>* input_channels);
+    void AddOneImageFromAFile(const std::vector<cv::Mat>& imgs, string file_name);
 
 private:
     shared_ptr<Net<float> > net_;
@@ -256,13 +259,20 @@ void Classifier::Preprocess(const cv::Mat& img,
     */
 }
 
+void AddOneImageFromAFile(std::vector<cv::Mat>& imgs, string file_name)
+{
+    cv::Mat img = cv::imread(file_name, -1);
+    CHECK(!img.empty()) << "Unable to decode image " << file_name;
+    imgs.push_back(img);
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 6)
     {
         std::cerr << "Usage: " << argv[0]
-                  << " deploy.prototxt network.caffemodel"
-                  << " mean.binaryproto labels.txt img.jpg list.txt data.db" << std::endl;
+                  << " deploy.prototxt network.caffemodel mean.binaryproto labels.txt "
+                  << " img.jpg or /dir-of-images or list.txt or lmdb.db" << std::endl;
         return 1;
     }
 
@@ -272,35 +282,56 @@ int main(int argc, char** argv)
     string trained_file = argv[2];
     string mean_file    = argv[3];
     string label_file   = argv[4];
+    string image_source  = argv[5];
     Classifier classifier(model_file, trained_file, mean_file, label_file);
 
     std::vector<cv::Mat> imgs;
-    for (int i = 5; i < argc; ++i)
-    {
-        cv::Mat img = cv::imread(argv[i], -1);
-        CHECK(!img.empty()) << "Unable to decode image " << argv[i];
-        for (int c = 0; c < 10000; ++c)
-        {
-            imgs.push_back(img);
-        }
-    }
-    std::vector<std::vector<Prediction> > all_predictions = classifier.Classify(imgs);
 
+
+    if (image_source == ".jpg" || image_source == ".png")
+    {
+        AddOneImageFromAFile(imgs,image_source);
+    }
+
+
+    struct stat sb;
+    if (stat(image_source.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode))
+    {
+        //add dir image code
+        DIR *dir;
+        struct dirent *ent;
+        if ((dir = opendir (image_source.c_str())) != NULL)
+        {
+            while ((ent = readdir (dir)) != NULL)
+            {
+                AddOneImageFromAFile(imgs,ent->d_name);
+                AddOneImageFromAFile(imgs,ent->d_name);
+            }
+            closedir (dir);
+        }
+        else
+        {
+            LOG(FATAL) << "Could not open directory";
+        }
+
+    }
+
+
+    std::vector<std::vector<Prediction> > all_predictions = classifier.Classify(imgs);
     /* Print the top N predictions. */
     for (size_t i = 0; i < all_predictions.size(); ++i)
     {
-        /*
-         std::cout << "---------- Prediction for "
-                    << argv[5 + i] << " ----------" << std::endl;
+        std::cout << "---------- Prediction for "
+                  << argv[5 + i] << " ----------" << std::endl;
 
         std::vector<Prediction>& predictions = all_predictions[i];
-          for (size_t j = 0; j < predictions.size(); ++j) {
-              Prediction p = predictions[j];
-              std::cout << std::fixed << std::setprecision(4) << p.second << " - \""
-                        << p.first << "\"" << std::endl;
-          }
-          std::cout << std::endl;
-        */
+        for (size_t j = 0; j < predictions.size(); ++j)
+        {
+            Prediction p = predictions[j];
+            std::cout << std::fixed << std::setprecision(4) << p.second << " - \""
+                      << p.first << "\"" << std::endl;
+        }
+        std::cout << std::endl;
 
     }
 }
