@@ -41,6 +41,7 @@ private:
     void Preprocess(const cv::Mat& img,
                     std::vector<cv::Mat>* input_channels);
     void AddOneImageFromAFile(const std::vector<cv::Mat>& imgs, string file_name);
+    bool IsImage(string file_name);
 
 private:
     shared_ptr<Net<float> > net_;
@@ -266,6 +267,24 @@ void AddOneImageFromAFile(std::vector<cv::Mat>& imgs, string file_name)
     imgs.push_back(img);
 }
 
+bool IsImage(string file_name)
+{
+    if (file_name.size() < 3)
+    {
+        return false;
+    }
+
+    string file_name_ext  = file_name.substr(file_name.size() - 3);
+    if (file_name_ext == "jpg" || file_name_ext == "png")
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 6)
@@ -283,16 +302,10 @@ int main(int argc, char** argv)
     string mean_file    = argv[3];
     string label_file   = argv[4];
     string image_source  = argv[5];
+    string image_source_ext  = image_source.substr(image_source.size() - 3);
+    std::transform(image_source_ext.begin(), image_source_ext.end(), image_source_ext.begin(), ::tolower);
     Classifier classifier(model_file, trained_file, mean_file, label_file);
-
     std::vector<cv::Mat> imgs;
-
-
-    if (image_source == ".jpg" || image_source == ".png")
-    {
-        AddOneImageFromAFile(imgs,image_source);
-    }
-
 
     struct stat sb;
     if (stat(image_source.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode))
@@ -304,8 +317,11 @@ int main(int argc, char** argv)
         {
             while ((ent = readdir (dir)) != NULL)
             {
-                AddOneImageFromAFile(imgs,ent->d_name);
-                AddOneImageFromAFile(imgs,ent->d_name);
+                string file_name   = image_source + "/" + ent->d_name;
+                if (IsImage(file_name))
+                {
+                    AddOneImageFromAFile(imgs,file_name);
+                }
             }
             closedir (dir);
         }
@@ -315,14 +331,31 @@ int main(int argc, char** argv)
         }
 
     }
+    else if (IsImage(image_source))
+    {
+        AddOneImageFromAFile(imgs,image_source);
+    }
+    else if (image_source_ext == ".db")
+    {
+        LOG(FATAL) << "LMDB not implemented yet.";
+    }
+    else if (image_source_ext == "txt")
+    {
+        LOG(FATAL) << "*.txt files not implemented yet.";
+    }
+    else
+    {
+        LOG(FATAL) << "Could not open image source.";
+    }
 
 
     std::vector<std::vector<Prediction> > all_predictions = classifier.Classify(imgs);
     /* Print the top N predictions. */
     for (size_t i = 0; i < all_predictions.size(); ++i)
     {
-        std::cout << "---------- Prediction for "
+        /*std::cout << "---------- Prediction for "
                   << argv[5 + i] << " ----------" << std::endl;
+        */
 
         std::vector<Prediction>& predictions = all_predictions[i];
         for (size_t j = 0; j < predictions.size(); ++j)
