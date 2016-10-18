@@ -40,7 +40,7 @@ private:
 
     void Preprocess(const cv::Mat& img,
                     std::vector<cv::Mat>* input_channels);
-    void AddOneImageFromAFile(const std::vector<cv::Mat>& imgs, string file_name);
+    void AddOneImageFromAFile(const std::vector<cv::Mat>& imgs,const std::vector<string>& keys, string file_name);
     bool IsImage(string file_name);
 
 private:
@@ -260,11 +260,12 @@ void Classifier::Preprocess(const cv::Mat& img,
     */
 }
 
-void AddOneImageFromAFile(std::vector<cv::Mat>& imgs, string file_name)
+void AddOneImageFromAFile(std::vector<cv::Mat>& imgs, std::vector<string>& keys,string file_name)
 {
     cv::Mat img = cv::imread(file_name, -1);
     CHECK(!img.empty()) << "Unable to decode image " << file_name;
     imgs.push_back(img);
+    keys.push_back(file_name);
 }
 
 bool IsImage(string file_name)
@@ -306,6 +307,7 @@ int main(int argc, char** argv)
     std::transform(image_source_ext.begin(), image_source_ext.end(), image_source_ext.begin(), ::tolower);
     Classifier classifier(model_file, trained_file, mean_file, label_file);
     std::vector<cv::Mat> imgs;
+    std::vector<string> keys;
 
     struct stat sb;
     if (stat(image_source.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode))
@@ -320,7 +322,7 @@ int main(int argc, char** argv)
                 string file_name   = image_source + "/" + ent->d_name;
                 if (IsImage(file_name))
                 {
-                    AddOneImageFromAFile(imgs,file_name);
+                    AddOneImageFromAFile(imgs,keys,file_name);
                 }
             }
             closedir (dir);
@@ -333,7 +335,7 @@ int main(int argc, char** argv)
     }
     else if (IsImage(image_source))
     {
-        AddOneImageFromAFile(imgs,image_source);
+        AddOneImageFromAFile(imgs,keys,image_source);
     }
     else if (image_source_ext == ".db")
     {
@@ -361,8 +363,9 @@ int main(int argc, char** argv)
         for (size_t j = 0; j < predictions.size(); ++j)
         {
             Prediction p = predictions[j];
-            std::cout << std::fixed << std::setprecision(4) << p.second << " - \""
-                      << p.first << "\"" << std::endl;
+            std::cout << keys[j] << ","
+                      << std::fixed << std::setprecision(4) << p.first << ","
+                      << p.second << std::endl;
         }
         std::cout << std::endl;
 
