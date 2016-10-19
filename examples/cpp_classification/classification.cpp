@@ -1,4 +1,4 @@
-//#define USE_OPENCV
+#define USE_OPENCV
 #include <caffe/caffe.hpp>
 #ifdef USE_OPENCV
 #include <opencv2/core/core.hpp>
@@ -14,9 +14,24 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
+//all for LMDB:
+#include <stdint.h>
+#include "boost/scoped_ptr.hpp"
+#include "gflags/gflags.h"
+#include "glog/logging.h"
+#include "caffe/proto/caffe.pb.h"
+#include "caffe/util/db.hpp"
+#include "caffe/util/io.hpp"
+
 #ifdef USE_OPENCV
 using namespace caffe;  // NOLINT(build/namespaces)
 using std::string;
+
+using std::max;
+using std::pair;
+using boost::scoped_ptr;
+DEFINE_string(backend, "lmdb",
+              "The backend {leveldb, lmdb} containing the images");
 
 /* Pair (label, confidence) representing a prediction. */
 typedef std::pair<string, float> Prediction;
@@ -30,17 +45,17 @@ public:
                const string& label_file);
 
     std::vector<std::vector<Prediction> > Classify(const std::vector<cv::Mat>& imgs, int N = 5);
+    void FillNet(const std::vector<cv::Mat>& imgs);
+    void FillNet(const string lmdb_file);
+    std::vector<std::vector<float> > Predict();
+    std::vector<std::vector<Prediction> > GetTopPredictions(std::vector<std::vector<float> > outputs, int N = 5);
 
 private:
     void SetMean(const string& mean_file);
-
-    std::vector<std::vector<float> > Predict(const std::vector<cv::Mat>& imgs);
-
     void WrapInputLayer(std::vector<cv::Mat>* input_channels, int n);
-
     void Preprocess(const cv::Mat& img,
                     std::vector<cv::Mat>* input_channels);
-    void AddOneImageFromAFile(const std::vector<cv::Mat>& imgs,const std::vector<string>& keys, string file_name);
+    void AddOneImageFromAFile(const std::vector<cv::Mat>& imgs,const std::vector<string>& keys, string& file_name);
     bool IsImage(string file_name);
 
 private:
@@ -90,6 +105,13 @@ Classifier::Classifier(const string& model_file,
             << "Number of labels is different from the output layer dimension.";
 }
 
+std::vector<std::vector<Prediction> > Classifier::Classify(const std::vector<cv::Mat>& imgs, int N)
+{
+    FillNet(imgs);
+    std::vector<std::vector<float> > outputs = Predict();
+    return GetTopPredictions(outputs,N);
+}
+
 static bool PairCompare(const std::pair<float, int>& lhs,
                         const std::pair<float, int>& rhs)
 {
@@ -111,10 +133,8 @@ static std::vector<int> Argmax(const std::vector<float>& v, int N)
 }
 
 /* Return the top N predictions. */
-std::vector<std::vector<Prediction> > Classifier::Classify(const std::vector<cv::Mat>& imgs, int N)
+std::vector<std::vector<Prediction> > Classifier::GetTopPredictions(std::vector<std::vector<float> > outputs, int N)
 {
-    std::vector<std::vector<float> > outputs = Predict(imgs);
-
     std::vector<std::vector<Prediction> > all_predictions;
     for (int j = 0; j < outputs.size(); ++j)
     {
@@ -167,7 +187,7 @@ void Classifier::SetMean(const string& mean_file)
     mean_ = cv::Mat(input_geometry_, mean.type(), channel_mean);
 }
 
-std::vector<std::vector<float> > Classifier::Predict(const std::vector<cv::Mat>& imgs)
+void Classifier::FillNet(const std::vector<cv::Mat>& imgs)
 {
     Blob<float>* input_layer = net_->input_blobs()[0];
     input_layer->Reshape(imgs.size(), num_channels_,
@@ -181,6 +201,27 @@ std::vector<std::vector<float> > Classifier::Predict(const std::vector<cv::Mat>&
         WrapInputLayer(&input_channels, i);
         Preprocess(imgs[i], &input_channels);
     }
+}
+
+void Classifier::FillNet(string lmdb_file)
+{
+    scoped_ptr<db::DB> db(db::GetDB("lmdb"));
+    db->Open(lmdb_file, db::READ);
+    scoped_ptr<db::Cursor> cursor(db->NewCursor());
+
+    while (cursor->valid())
+    {
+        Datum datum;
+        datum.ParseFromString(cursor->value());
+        DecodeDatumNative(&datum);
+        //Do Something!
+
+        cursor->Next();
+    }
+}
+
+std::vector<std::vector<float> > Classifier::Predict()
+{
     net_->ForwardPrefilled();
 
     std::vector<std::vector<float> > outputs;
@@ -292,7 +333,7 @@ int main(int argc, char** argv)
     {
         std::cerr << "Usage: " << argv[0]
                   << " deploy.prototxt network.caffemodel mean.binaryproto labels.txt "
-                  << " img.jpg or /dir-of-images or list.txt or lmdb.db" << std::endl;
+                  << " img.jpg or dir-of-images or list.txt or lmdb.db" << std::endl;
         return 1;
     }
 
@@ -308,6 +349,7 @@ int main(int argc, char** argv)
     Classifier classifier(model_file, trained_file, mean_file, label_file);
     std::vector<cv::Mat> imgs;
     std::vector<string> keys;
+    std::vector<std::vector<Prediction> > all_predictions;
 
     struct stat sb;
     if (stat(image_source.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode))
@@ -326,6 +368,7 @@ int main(int argc, char** argv)
                 }
             }
             closedir (dir);
+            all_predictions = classifier.Classify(imgs);
         }
         else
         {
@@ -336,22 +379,25 @@ int main(int argc, char** argv)
     else if (IsImage(image_source))
     {
         AddOneImageFromAFile(imgs,keys,image_source);
+        all_predictions = classifier.Classify(imgs);
     }
     else if (image_source_ext == ".db")
     {
-        LOG(FATAL) << "LMDB not implemented yet.";
+        classifier.FillNet(image_source);
+        std::vector<std::vector<float> > outputs = classifier.Predict();
+        all_predictions = classifier.GetTopPredictions(outputs,5);
     }
     else if (image_source_ext == "txt")
     {
-        LOG(FATAL) << "*.txt files not implemented yet.";
+        LOG(FATAL) << "Text(*.txt) files not implemented yet.";
     }
     else
     {
-        LOG(FATAL) << "Could not open image source.";
+        LOG(FATAL) << "Could not identity type of image source.";
     }
 
 
-    std::vector<std::vector<Prediction> > all_predictions = classifier.Classify(imgs);
+
     /* Print the top N predictions. */
     for (size_t i = 0; i < all_predictions.size(); ++i)
     {
