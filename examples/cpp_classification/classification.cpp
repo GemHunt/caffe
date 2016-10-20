@@ -46,7 +46,7 @@ public:
 
     std::vector<std::vector<Prediction> > Classify(const std::vector<cv::Mat>& imgs, int N = 5);
     void FillNet(const std::vector<cv::Mat>& imgs);
-    void FillNet(const string lmdb_file);
+    std::vector<cv::Mat> ReadLMDB(const string lmdb_file);
     std::vector<std::vector<float> > Predict();
     std::vector<std::vector<Prediction> > GetTopPredictions(std::vector<std::vector<float> > outputs, int N = 5);
 
@@ -203,8 +203,9 @@ void Classifier::FillNet(const std::vector<cv::Mat>& imgs)
     }
 }
 
-void Classifier::FillNet(string lmdb_file)
+std::vector<cv::Mat> Classifier::ReadLMDB(string lmdb_file)
 {
+    std::vector<cv::Mat> imgs;
     scoped_ptr<db::DB> db(db::GetDB("lmdb"));
     db->Open(lmdb_file, db::READ);
     scoped_ptr<db::Cursor> cursor(db->NewCursor());
@@ -213,11 +214,12 @@ void Classifier::FillNet(string lmdb_file)
     {
         Datum datum;
         datum.ParseFromString(cursor->value());
-        DecodeDatumNative(&datum);
-        //Do Something!
-
+        cv::Mat img;
+        img = DecodeDatumToCVMatNative(datum);
+        imgs.push_back(img);
         cursor->Next();
     }
+    return imgs;
 }
 
 std::vector<std::vector<float> > Classifier::Predict()
@@ -368,11 +370,15 @@ int main(int argc, char** argv)
                 }
             }
             closedir (dir);
+            if (imgs.size() == 0)
+            {
+                LOG(FATAL) << "No images are in " + image_source;
+            }
             all_predictions = classifier.Classify(imgs);
         }
         else
         {
-            LOG(FATAL) << "Could not open directory";
+            LOG(FATAL) << "Could not open " + image_source;
         }
 
     }
@@ -381,11 +387,13 @@ int main(int argc, char** argv)
         AddOneImageFromAFile(imgs,keys,image_source);
         all_predictions = classifier.Classify(imgs);
     }
-    else if (image_source_ext == ".db")
+    else if (image_source_ext == "mdb")
     {
-        classifier.FillNet(image_source);
-        std::vector<std::vector<float> > outputs = classifier.Predict();
-        all_predictions = classifier.GetTopPredictions(outputs,5);
+        string lmdb_dir = image_source.substr(0, image_source.find_last_of("\\/"));
+        imgs = classifier.ReadLMDB(lmdb_dir);
+        all_predictions = classifier.Classify(imgs);
+        //std::vector<std::vector<float> > outputs = classifier.Predict();
+        //all_predictions = classifier.GetTopPredictions(outputs,5);
     }
     else if (image_source_ext == "txt")
     {
@@ -396,7 +404,10 @@ int main(int argc, char** argv)
         LOG(FATAL) << "Could not identity type of image source.";
     }
 
-
+    if (all_predictions.size() == 0)
+    {
+        LOG(FATAL) << "Something is wrong. Nothing was classified.";
+    }
 
     /* Print the top N predictions. */
     for (size_t i = 0; i < all_predictions.size(); ++i)
@@ -409,7 +420,7 @@ int main(int argc, char** argv)
         for (size_t j = 0; j < predictions.size(); ++j)
         {
             Prediction p = predictions[j];
-            std::cout << keys[j] << ","
+            std::cout << "keys[j]" << ","
                       << std::fixed << std::setprecision(4) << p.first << ","
                       << p.second << std::endl;
         }
