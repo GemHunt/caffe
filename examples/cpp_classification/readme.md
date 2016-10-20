@@ -9,6 +9,36 @@ priority: 10
 # Notes from Paul: Currently working on adding lmdb classification to this example...
 
 
+Classification_CPP:
+* Test my own lmdbs to see if the keys pass through. 
+* Change ForwardPrefilled to Forward 
+* I don’t need large batches, so use this for a while before doing anything else. 
+
+Post on Google caffe users asking for help: 
+* I am looking for commentary on this. Why hasn’t anyone done this yet? Is there a better way?
+
+* For reading the lmdb I just converted the datum to cv:Mat, but I am guessing this does not need to be done. It’s nice because it uses the same code. 
+* Add reading image names from a text file
+* Add batching. On the cpu it doesn’t matter, but on the GPU this currently just fails when the GPU memory is used up. 
+* Use multiple classification threads to ensure the GPU is always fully utilized and not waiting for an I/O blocked CPU thread.
+* Understand why objects are past with const and some are not. 
+* Move most of code left main into the Classifier class
+* Go back to the way the code was written now that I am making CV:Mat for imdbs?
+* Allow Multi GPU
+* Work on the class interface (Make more of the functions private.)
+* Add a parameter for top results. (5 is hardcoded right now) 
+* The readme needs to be updated. 
+
+My Personal Learning:
+* I want to nitpick the C++ code before and after. 
+* I need to have a more solid understanding on how variables are being passed into functions here. 
+* How do you find the implementation and declaration of variables in a terminal?
+
+
+
+
+
+
 
 
 # Classifying ImageNet: using the C++ API
