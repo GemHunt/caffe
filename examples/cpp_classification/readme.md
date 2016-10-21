@@ -29,6 +29,8 @@ Post on Google caffe users asking for help:
 * Work on the class interface (Make more of the functions private.)
 * Add a parameter for top results. (5 is hardcoded right now) 
 * The readme needs to be updated. 
+* lmdb option only reads encoded images. It should read uncoded images without erroring. 
+
 
 My Personal Learning:
 * I want to nitpick the C++ code before and after. 
