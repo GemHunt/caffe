@@ -18,6 +18,7 @@ Post on Google caffe users asking for help:
 * I am looking for commentary on this. Why hasn’t anyone done this yet? Is there a better way?
 * I guess I should study the source code of the command line tool caffe in tools/caffe.cpp...
 
+Tasks:
 * For reading the lmdb I just converted the datum to cv:Mat, but I am guessing this does not need to be done. It’s nice because it uses the same code. 
 * Add reading image names from a text file
 * Add batching. On the cpu it doesn’t matter, but on the GPU this currently just fails when the GPU memory is used up. 
@@ -30,6 +31,7 @@ Post on Google caffe users asking for help:
 * Add a parameter for top results. (5 is hardcoded right now) 
 * The readme needs to be updated. 
 * lmdb option only reads encoded images. It should read uncoded images without erroring. 
+* Style the code to pass the lint checker. 
 
 
 My Personal Learning:
