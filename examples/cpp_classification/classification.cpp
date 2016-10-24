@@ -46,7 +46,7 @@ public:
 
     std::vector<std::vector<Prediction> > Classify(const std::vector<cv::Mat>& imgs, int N = 5);
     void FillNet(const std::vector<cv::Mat>& imgs);
-    void ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys,const string lmdb_file);
+    void ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys, std::vector<string>& label_keys,const string lmdb_file);
     std::vector<std::vector<float> > Predict();
     std::vector<std::vector<Prediction> > GetTopPredictions(std::vector<std::vector<float> > outputs, int N = 5);
 
@@ -203,7 +203,7 @@ void Classifier::FillNet(const std::vector<cv::Mat>& imgs)
     }
 }
 
-void Classifier::ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys,string lmdb_file)
+void Classifier::ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys, std::vector<string>& label_keys, string lmdb_file)
 {
     scoped_ptr<db::DB> db(db::GetDB("lmdb"));
     db->Open(lmdb_file, db::READ);
@@ -216,10 +216,8 @@ void Classifier::ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys,
         cv::Mat img;
         img = DecodeDatumToCVMatNative(datum);
         imgs.push_back(img);
-        //ostringstream convert;
-        //convert << datum.id();
-        //labels.push_back(convert.str());
         keys.push_back(cursor->key());
+        //label_keys.push_back(datum.label);
         cursor->Next();
     }
 }
@@ -353,6 +351,7 @@ int main(int argc, char** argv)
     Classifier classifier(model_file, trained_file, mean_file, label_file);
     std::vector<cv::Mat> imgs;
     std::vector<string> keys;
+    std::vector<string> label_keys;
     std::vector<std::vector<Prediction> > all_predictions;
 
     struct stat sb;
@@ -392,7 +391,7 @@ int main(int argc, char** argv)
     else if (image_source_ext == "mdb")
     {
         string lmdb_dir = image_source.substr(0, image_source.find_last_of("\\/"));
-        classifier.ReadLMDB(imgs, keys, lmdb_dir);
+        classifier.ReadLMDB(imgs,keys,label_keys, lmdb_dir);
         all_predictions = classifier.Classify(imgs);
         //std::vector<std::vector<float> > outputs = classifier.Predict();
         //all_predictions = classifier.GetTopPredictions(outputs,5);
@@ -419,6 +418,13 @@ int main(int argc, char** argv)
         */
 
         std::vector<Prediction>& predictions = all_predictions[i];
+        /*
+        string label = "";
+        if (label_keys.size() == keys.size())
+        {
+            label = label_keys[i];
+        }
+        */
         for (size_t j = 0; j < predictions.size(); ++j)
         {
             Prediction p = predictions[j];
@@ -426,8 +432,6 @@ int main(int argc, char** argv)
                       << std::fixed << std::setprecision(4) << p.first << ","
                       << p.second << std::endl;
         }
-        std::cout << std::endl;
-
     }
 }
 #else
