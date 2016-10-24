@@ -11,6 +11,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <string>
 #include <sys/stat.h>
 #include <dirent.h>
 
@@ -19,7 +20,6 @@
 #include "boost/scoped_ptr.hpp"
 #include "gflags/gflags.h"
 #include "glog/logging.h"
-#include "caffe/proto/caffe.pb.h"
 #include "caffe/util/db.hpp"
 #include "caffe/util/io.hpp"
 
@@ -46,7 +46,7 @@ public:
 
     std::vector<std::vector<Prediction> > Classify(const std::vector<cv::Mat>& imgs, int N = 5);
     void FillNet(const std::vector<cv::Mat>& imgs);
-    std::vector<cv::Mat> ReadLMDB(const string lmdb_file);
+    void ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys,const string lmdb_file);
     std::vector<std::vector<float> > Predict();
     std::vector<std::vector<Prediction> > GetTopPredictions(std::vector<std::vector<float> > outputs, int N = 5);
 
@@ -203,9 +203,8 @@ void Classifier::FillNet(const std::vector<cv::Mat>& imgs)
     }
 }
 
-std::vector<cv::Mat> Classifier::ReadLMDB(string lmdb_file)
+void Classifier::ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys,string lmdb_file)
 {
-    std::vector<cv::Mat> imgs;
     scoped_ptr<db::DB> db(db::GetDB("lmdb"));
     db->Open(lmdb_file, db::READ);
     scoped_ptr<db::Cursor> cursor(db->NewCursor());
@@ -217,9 +216,12 @@ std::vector<cv::Mat> Classifier::ReadLMDB(string lmdb_file)
         cv::Mat img;
         img = DecodeDatumToCVMatNative(datum);
         imgs.push_back(img);
+        //ostringstream convert;
+        //convert << datum.id();
+        //labels.push_back(convert.str());
+        keys.push_back(cursor->key());
         cursor->Next();
     }
-    return imgs;
 }
 
 std::vector<std::vector<float> > Classifier::Predict()
@@ -390,7 +392,7 @@ int main(int argc, char** argv)
     else if (image_source_ext == "mdb")
     {
         string lmdb_dir = image_source.substr(0, image_source.find_last_of("\\/"));
-        imgs = classifier.ReadLMDB(lmdb_dir);
+        classifier.ReadLMDB(imgs, keys, lmdb_dir);
         all_predictions = classifier.Classify(imgs);
         //std::vector<std::vector<float> > outputs = classifier.Predict();
         //all_predictions = classifier.GetTopPredictions(outputs,5);
@@ -420,7 +422,7 @@ int main(int argc, char** argv)
         for (size_t j = 0; j < predictions.size(); ++j)
         {
             Prediction p = predictions[j];
-            std::cout << "keys[j]" << ","
+            std::cout << keys[i] << ","
                       << std::fixed << std::setprecision(4) << p.first << ","
                       << p.second << std::endl;
         }
