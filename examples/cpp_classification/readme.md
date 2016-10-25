@@ -32,6 +32,7 @@ Tasks:
 * The readme needs to be updated. 
 * lmdb option only reads encoded images. It should read uncoded images without erroring. 
 * Style the code to pass the lint checker. 
+* It needs output key,ground_truth,prediction,result in a general way. 
 
 
 My Personal Learning:
