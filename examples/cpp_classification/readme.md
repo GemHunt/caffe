@@ -8,6 +8,12 @@ priority: 10
 
 # Notes from Paul: Currently working on adding lmdb classification to this example...
 
+This started from changes to batch processing from @flx42:
+https://github.com/flx42/caffe/commit/be0bff1a84c9e16fb8e8514dc559f2de5ab1a416
+
+This is currently working for directories and lmdbs, but needs lot of work to clean it up. 
+
+I am using this for LeNet style networks and I am infering LMDBs at 40K plus images a second with a GTX970 GPU and a slower CPU. 
 
 Classification_CPP:
 * Test my own lmdbs to see if the keys pass through. 
