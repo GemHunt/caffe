@@ -46,7 +46,7 @@ public:
 
     std::vector<std::vector<Prediction> > Classify(const std::vector<cv::Mat>& imgs, int N = 5);
     void FillNet(const std::vector<cv::Mat>& imgs);
-    void ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys, std::vector<string>& label_keys,const string lmdb_file);
+    std::vector<std::vector<Prediction> > ReadLMDB(std::vector<string>& keys, std::vector<string>& label_keys,const string lmdb_file);
     std::vector<std::vector<float> > Predict();
     std::vector<std::vector<Prediction> > GetTopPredictions(std::vector<std::vector<float> > outputs, int N = 5);
 
@@ -203,11 +203,17 @@ void Classifier::FillNet(const std::vector<cv::Mat>& imgs)
     }
 }
 
-void Classifier::ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys, std::vector<string>& label_keys, string lmdb_file)
+std::vector<std::vector<Prediction> > Classifier::ReadLMDB(std::vector<string>& keys, std::vector<string>& label_keys, string lmdb_file)
 {
     scoped_ptr<db::DB> db(db::GetDB("lmdb"));
     db->Open(lmdb_file, db::READ);
     scoped_ptr<db::Cursor> cursor(db->NewCursor());
+    std::vector<cv::Mat> imgs;
+    std::vector<std::vector<Prediction> > predictions;
+    std::vector<std::vector<Prediction> > batch_outputs;
+
+    int max_batch = 1000;
+    int id = 0;
 
     while (cursor->valid())
     {
@@ -219,7 +225,23 @@ void Classifier::ReadLMDB(std::vector<cv::Mat>& imgs, std::vector<string>& keys,
         keys.push_back(cursor->key());
         //label_keys.push_back(datum.label);
         cursor->Next();
+        id++;
+        if (id > max_batch)
+        {
+            batch_outputs = Classify(imgs,360);
+            predictions.insert(predictions.end(), batch_outputs.begin(), batch_outputs.end());
+            imgs.clear();
+            batch_outputs.clear();
+            id = 0;
+            std::cout << "batching..." << std::endl;
+        }
     }
+    if (id != 0)
+    {
+        batch_outputs = Classify(imgs,360);
+        predictions.insert(predictions.end(), batch_outputs.begin(), batch_outputs.end());
+    }
+    return predictions;
 }
 
 std::vector<std::vector<float> > Classifier::Predict()
@@ -238,6 +260,7 @@ std::vector<std::vector<float> > Classifier::Predict()
     }
     return outputs;
 }
+
 
 /* Wrap the input layer of the network in separate cv::Mat objects
  * (one per channel). This way we save one memcpy operation and we
@@ -391,8 +414,7 @@ int main(int argc, char** argv)
     else if (image_source_ext == "mdb")
     {
         string lmdb_dir = image_source.substr(0, image_source.find_last_of("\\/"));
-        classifier.ReadLMDB(imgs,keys,label_keys, lmdb_dir);
-        all_predictions = classifier.Classify(imgs);
+        all_predictions = classifier.ReadLMDB(keys,label_keys, lmdb_dir);
         //std::vector<std::vector<float> > outputs = classifier.Predict();
         //all_predictions = classifier.GetTopPredictions(outputs,5);
     }
@@ -411,20 +433,11 @@ int main(int argc, char** argv)
     }
 
     /* Print the top N predictions. */
+    std::cout << "key,ground_truth,prediction,result" << std::endl;
+
     for (size_t i = 0; i < all_predictions.size(); ++i)
     {
-        /*std::cout << "---------- Prediction for "
-                  << argv[5 + i] << " ----------" << std::endl;
-        */
-
         std::vector<Prediction>& predictions = all_predictions[i];
-        /*
-        string label = "";
-        if (label_keys.size() == keys.size())
-        {
-            label = label_keys[i];
-        }
-        */
         for (size_t j = 0; j < predictions.size(); ++j)
         {
             Prediction p = predictions[j];
