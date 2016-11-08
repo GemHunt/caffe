@@ -146,7 +146,10 @@ std::vector<std::vector<Prediction> > Classifier::GetTopPredictions(std::vector<
         for (int i = 0; i < N; ++i)
         {
             int idx = maxN[i];
-            predictions.push_back(std::make_pair(labels_[idx], output[idx]));
+            if (output[idx] > .01)
+            {
+                predictions.push_back(std::make_pair(labels_[idx], output[idx]));
+            }
         }
         all_predictions.push_back(predictions);
     }
@@ -212,7 +215,7 @@ std::vector<std::vector<Prediction> > Classifier::ReadLMDB(std::vector<string>& 
     std::vector<std::vector<Prediction> > predictions;
     std::vector<std::vector<Prediction> > batch_outputs;
 
-    int max_batch = 1000;
+    int max_batch = 37000;
     int id = 0;
 
     while (cursor->valid())
@@ -228,18 +231,18 @@ std::vector<std::vector<Prediction> > Classifier::ReadLMDB(std::vector<string>& 
         id++;
         if (id > max_batch)
         {
-            batch_outputs = Classify(imgs,360);
+            batch_outputs = Classify(imgs,10);
             predictions.insert(predictions.end(), batch_outputs.begin(), batch_outputs.end());
             imgs.clear();
-            batch_outputs.clear();
             id = 0;
-            std::cout << "batching..." << std::endl;
+            //std::cout << "batching..." << keys.size() <<   std::endl;
         }
     }
     if (id != 0)
     {
-        batch_outputs = Classify(imgs,360);
+        batch_outputs = Classify(imgs,10);
         predictions.insert(predictions.end(), batch_outputs.begin(), batch_outputs.end());
+        //std::cout << "batching..." << keys.size() <<   std::endl;
     }
     return predictions;
 }
@@ -415,8 +418,6 @@ int main(int argc, char** argv)
     {
         string lmdb_dir = image_source.substr(0, image_source.find_last_of("\\/"));
         all_predictions = classifier.ReadLMDB(keys,label_keys, lmdb_dir);
-        //std::vector<std::vector<float> > outputs = classifier.Predict();
-        //all_predictions = classifier.GetTopPredictions(outputs,5);
     }
     else if (image_source_ext == "txt")
     {
@@ -441,7 +442,7 @@ int main(int argc, char** argv)
         for (size_t j = 0; j < predictions.size(); ++j)
         {
             Prediction p = predictions[j];
-            std::cout << keys[i] << ","
+            std::cout <<  keys[i]  << ","
                       << std::fixed << std::setprecision(4) << p.first << ","
                       << p.second << std::endl;
         }
