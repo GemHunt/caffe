@@ -226,7 +226,9 @@ std::vector<std::vector<Prediction> > Classifier::ReadLMDB(std::vector<string>& 
         img = DecodeDatumToCVMatNative(datum);
         imgs.push_back(img);
         keys.push_back(cursor->key());
+        //ok, I don't know the datum.label type right now:
         //label_keys.push_back(datum.label);
+
         cursor->Next();
         id++;
         if (id > max_batch)
@@ -434,7 +436,8 @@ int main(int argc, char** argv)
     }
 
     /* Print the top N predictions. */
-    std::cout << "key,ground_truth,prediction,result" << std::endl;
+    //std::cout << "key,ground_truth,prediction,result" << std::endl;
+    std::cout << "key,prediction,result" << std::endl;
 
     for (size_t i = 0; i < all_predictions.size(); ++i)
     {
@@ -454,3 +457,4 @@ int main(int argc, char** argv)
     LOG(FATAL) << "This example requires OpenCV; compile with USE_OPENCV.";
 }
 #endif  // USE_OPENCV
+
