@@ -436,9 +436,7 @@ int main(int argc, char** argv)
     }
 
     /* Print the top N predictions. */
-    //std::cout << "key,ground_truth,prediction,result" << std::endl;
-    std::cout << "key,prediction,result" << std::endl;
-
+    std::cout << "key,ground_truth,prediction,result" << std::endl;
     for (size_t i = 0; i < all_predictions.size(); ++i)
     {
         std::vector<Prediction>& predictions = all_predictions[i];
