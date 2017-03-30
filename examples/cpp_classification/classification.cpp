@@ -146,7 +146,7 @@ std::vector<std::vector<Prediction> > Classifier::GetTopPredictions(std::vector<
         for (int i = 0; i < N; ++i)
         {
             int idx = maxN[i];
-            if (output[idx] > .006)
+            if (output[idx] > .02)
             {
                 predictions.push_back(std::make_pair(labels_[idx], output[idx]));
             }
@@ -215,7 +215,8 @@ std::vector<std::vector<Prediction> > Classifier::ReadLMDB(std::vector<string>& 
     std::vector<std::vector<Prediction> > predictions;
     std::vector<std::vector<Prediction> > batch_outputs;
 
-    int max_batch = 37000;
+    //37000 to max gtx 970 4 gb but cpu is maxed. I bet this code can be way more efficient. 
+    int max_batch = 4500;
     int id = 0;
 
     while (cursor->valid())
@@ -233,7 +234,7 @@ std::vector<std::vector<Prediction> > Classifier::ReadLMDB(std::vector<string>& 
         id++;
         if (id > max_batch)
         {
-            batch_outputs = Classify(imgs,36);
+            batch_outputs = Classify(imgs,5);
             predictions.insert(predictions.end(), batch_outputs.begin(), batch_outputs.end());
             imgs.clear();
             id = 0;
@@ -242,7 +243,7 @@ std::vector<std::vector<Prediction> > Classifier::ReadLMDB(std::vector<string>& 
     }
     if (id != 0)
     {
-        batch_outputs = Classify(imgs,12);
+        batch_outputs = Classify(imgs,5);
         predictions.insert(predictions.end(), batch_outputs.begin(), batch_outputs.end());
         //std::cout << "batching..." << keys.size() <<   std::endl;
     }
@@ -436,7 +437,7 @@ int main(int argc, char** argv)
     }
 
     /* Print the top N predictions. */
-    std::cout << "key,image_id,ground_truth,prediction,result" << std::endl;
+    std::cout << "temp_key,key,ground_truth,prediction,result" << std::endl;
 
     for (size_t i = 0; i < all_predictions.size(); ++i)
     {
